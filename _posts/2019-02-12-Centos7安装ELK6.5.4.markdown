@@ -1,0 +1,286 @@
+---
+layout: post
+title: "Centos7安装ELK6.5.4"
+author: "高灶顺"
+header-style: text
+tags:
+  - ELK日志管理
+---
+# Centos7安装ELK6.5.4
+
+
+# 1、预安装JDK8
+# 2、禁用SELinux
+原因：kibana始终都是报Nginx502Bad
+# 3、安装ES
+```bash
+# 下载并安装公共签名密钥
+rpm --import https://artifacts.elastic.co/GPG-KEY-elasticsearch
+
+# 下载rpm源
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-6.5.4.rpm
+
+# 安装
+rpm -ivh elasticsearch-6.5.4.rpm
+
+# 配置elasticsearch.yml
+vim /etc/elasticsearch/elasticsearch.yml
+
+# 取消下面两行的注释
+bootstrap.memory_lock: true  # 设置堆大小为可用内存的一半左右
+http.port: 9200
+
+# 配置es的jvm内存
+vim /etc/logstash/jvm.options
+# 设置JVM内存大小，默认-Xms1g -Xmx1g
+-Xms256m
+-Xmx256m
+
+# 重新加载配置文件
+systemctl daemon-reload
+
+# 设置自启
+systemctl enable elasticsearch
+
+# 启动
+systemctl start elasticsearch
+
+# 查看是否启动成功: 9200端口
+netstat -plntu
+```
+# 4、安装Nginx
+```shell
+# 安装软件仓库EPEL,用于yum install xxx提供软件包
+yum install -y epel-release
+
+# 安装Nginx及依赖模块
+yum install nginx httpd-tools -y
+
+# 删除配置
+vim /etc/nginx/nginx.conf
+
+# 删除80端口的server{}配置
+```
+
+![image.png](https://cdn.nlark.com/yuque/0/2019/png/150236/1547113374086-a423a0a1-7352-41aa-b9db-887af7c93d09.png#align=left&display=inline&height=322&linkTarget=_blank&name=image.png&originHeight=322&originWidth=464&size=17573&width=464)
+
+```bash
+# 创建kibana代理
+vim /etc/nginx/conf.d/kibana.conf
+
+# 添加nginx配置
+server {
+listen 80;
+server_name elk-stack.co;
+auth_basic "Restricted Access";
+auth_basic_user_file /etc/nginx/.kibana-user;
+location / {
+    proxy_pass http://localhost:5601;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection 'upgrade';
+    proxy_set_header Host $host;
+    proxy_cache_bypass $http_upgrade;
+} }
+
+# 创建elasticsearch代理
+vim /etc/nginx/conf.d/elasticsearch.conf
+
+# 添加nginx配置
+server {
+listen 81;
+server_name elk-stack.co;
+location / {
+    proxy_pass http://localhost:9200;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection 'upgrade';
+    proxy_set_header Host $host;
+    proxy_cache_bypass $http_upgrade;
+} }
+
+# 添加basic认证
+htpasswd -c /etc/nginx/.kibana-user admin
+
+# 检测nginx配置文件
+nginx -t
+
+# 设置开机自启
+systemctl enable nginx
+
+# 启动Nginx
+systemctl start nginx
+```
+# 5、安装Kibana
+```bash
+# 下载rpm源
+wget https://artifacts.elastic.co/downloads/kibana/kibana-6.5.4-x86_64.rpm
+
+# 安装kibana
+rpm -ivh kibana-6.5.4-x86_64.rpm
+
+# 修改配置
+vim /etc/kibana/kibana.yml
+
+# 取消以下三行的注释
+server.port: 5601
+server.host: "localhost"
+elasticsearch.url: "http://localhost:9200"
+
+# 设置开机自启
+systemctl enable kibana
+
+# 启动Kibana
+systemctl start kibana
+
+# 查看是否启动成功：5601端口
+netstat -plntu
+```
+# 6、安装Logstash
+```bash
+# 下载rpm源
+wget https://artifacts.elastic.co/downloads/logstash/logstash-6.5.4.rpm
+
+# 安装
+rpm -ivh logstash-6.5.4.rpm
+
+#配置logstash的jvm内存
+vim /etc/logstash/jvm.options
+# 设置JVM内存大小，默认-Xms1g -Xmx1g
+-Xms256m
+-Xmx256m
+
+# 设置开机自启
+systemctl enable logstash
+
+# 启动
+systemctl start logstash
+
+# 关闭
+systemctl stop logstash
+
+# 开放防火墙
+firewall-cmd --zone=public --add-port=80/tcp --add-port=81/tcp --permanent
+firewall-cmd --reload
+
+# 测试pipeline
+logstash -e 'input{stdin{}}output{stdout{}}'
+
+# 等待出现"Pipeline main started"输入日志测试
+# 退出
+ctrl+D
+```
+## logstash.yml主配置
+```bash
+vim /etc/logstash/logstash.yml
+```
+
+```yaml
+# 节点名称，默认主机名称
+node.name: logstash-node1
+# 数据存储路径，默认LOGSTASH_HOME/data/
+path.data: /data/logstash
+# 启动加载的配置文件：输入 过滤 输出配置
+path.config: /etc/logstash/conf.d/*.conf
+# 日志输出路径
+path.logs: /var/log/logstash
+# 每次input数量,代价是增加了内存开销。您可能需要在jvm.options配置文件中增加JVM堆空间。
+pipeline.batch.size: 125
+pipeline.batch.delay: 50
+# 输出通道的工作workers数据量（提升输出效率），默认CPU核数
+pipeline.workers: 2
+# 每个输出插件的工作wokers数量
+pipeline.output.workers: 1
+# 自动重新加载被修改配置
+config.reload.automatic: true
+# 配置文件检查时间
+config.reload.interval: 5
+# 绑定主机地址，用户指标收集
+http.host: "127.0.0.1"
+# 绑定端口
+http.port: 5000-9700
+# 日志输出级别,如果config.debug开启，这里一定要是debug日志
+log.level: info
+# 自定义插件目录
+path.plugins: []
+```
+
+## Logstash管道配置文件
+测试数据：[logstash-log.rar](https://www.yuque.com/attachments/yuque/0/2019/rar/150236/1547525006324-61eaf0db-0376-4c23-b3ad-f7c41ced0a9c.rar)
+
+```bash
+vim /etc/logstash/conf.d/xxx.conf
+```
+### 输入input
+```ruby
+input {
+  tcp {
+    # 当模式是server，要监听的地址。当模式是client，连接的地址。
+    host => "0.0.0.0"
+    # 当模式是server，侦听端口。当模式是client，连接的端口。
+    port => 8888
+    # 操作模式 server侦听客户端连接， client连接到服务器。
+    mode => "server"
+    # 添加字段
+    add_filed => {}
+    # 解码器 默认line
+    codec => "line"
+    # 多个tcp输入时需添加id
+    id => "gold"
+    # 给输入源添加标签
+    tags => ["a","b"]
+    # 添加类型
+    type => "a"
+  }
+}
+```
+
+```bash
+# --config.test_and_exit解析配置文件并报告任何错误
+logstash -f first-pipeline.conf --config.test_and_exit
+# --config.reload.automatic启用自动配置重新加载
+logstash -f first-pipeline.conf --config.reload.automatic
+```
+
+## startup.options配置文件
+startup.options这个文件只会在logstash安装时初始化设置一次
+```bash
+# 覆盖本地java存储路径
+JAVACMD=/usr/bin/java
+# 设置logstash安装路径
+LS_HOME=/usr/share/logstash
+# 设置logstash配置文件目录
+LS_SETTINGS_DIR=/etc/logstash
+# 启动时传递给logstash的参数
+LS_OPTS="--path.settings ${LS_SETTINGS_DIR}"
+# 启动时传递给java的参数
+LS_JAVA_OPTS=""
+# pidfiles aren't used the same way for upstart and systemd; this is for sysv users.
+LS_PIDFILE=/var/run/logstash.pid
+# 用户权限组
+LS_USER=root
+LS_GROUP=root
+# Enable GC logging by uncommenting the appropriate lines in the GC logging
+# section in jvm.options
+LS_GC_LOG_FILE=/var/log/logstash/gc.log
+# Open file limit
+LS_OPEN_FILES=16384
+# Nice level
+LS_NICE=19
+# 将它们更改为以不同的方式命名和描述init脚本
+# 这在同一个Logstash上运行多个实例时非常有用
+# 物理盒或虚拟机
+SERVICE_NAME="logstash"
+SERVICE_DESCRIPTION="logstash"
+# If you need to run a command or script before launching Logstash, put it
+# between the lines beginning with `read` and `EOM`, and uncomment those lines.
+###
+## read -r -d '' PRESTART << EOM
+## EOM
+```
+
+如果修改了startup.options配置，则需要执行如下命令才能生效：
+```bash
+system-install startup.options
+```
+

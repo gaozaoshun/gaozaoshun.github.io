@@ -1,0 +1,45 @@
+---
+layout: post
+title: "Lostash多实例运行"
+author: "高灶顺"
+header-style: text
+tags:
+  - ELK日志管理
+---
+# Lostash多实例运行
+
+
+```bash
+# 复制一套现有的配置
+cp -r /etc/logstash /etc/logstash.copy
+cd /etc/logstash.copy
+# 修改logstash.yml配置
+vim logstash.yml
+```
+
+```yaml
+node.name: logstash-1
+# 实例间无法共用同一个存储路径
+path.data: /data/logstash-1
+path.config: /etc/logstash.copy/conf.d/*.conf
+path.logs: /log/logstash-1
+```
+
+```bash
+# 修改pipeline配置文件
+vim /etc/logstash.copy/conf.d/test.conf
+```
+
+```ruby
+input {
+  stdin{codec=>line}
+}
+output{
+  stdout{ codec => json}
+}
+```
+
+```bash
+# 运行logstash
+logstash --path.settings /etc/logstash.copy
+```

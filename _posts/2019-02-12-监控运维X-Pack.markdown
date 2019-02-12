@@ -1,15 +1,10 @@
 ---
 layout: post
 title: "监控运维X-Pack"
-subtitle: 'elk日志监控'
 author: "高灶顺"
 header-style: text
 tags:
   - ELK日志管理
----
-
-Update: 我最后还是放弃在 Vim 模式下输入中文了，mental model 的 cost 太重了（
-
 ---
 # 监控运维X-Pack
 
