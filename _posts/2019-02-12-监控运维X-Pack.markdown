@@ -1,0 +1,15 @@
+# 监控运维X-Pack
+
+# 1、安装x-pack
+```bash
+logstash-plugin install x-pack
+```
+# 2、配置logstash.yml
+```yaml
+xpack.monitoring.enabled: true
+xpack.monitoring.elasticsearch.username: logstash_system
+xpack.monitoring.elasticsearch.password: 123456
+xpack.monitoring.elasticsearch.url: ["http://localhost:9200"]
+```
+# 3、打开监控节点
+[http://192.168.184.131/app/monitoring](http://192.168.184.131/app/monitoring)<br />![image.png](https://cdn.nlark.com/yuque/0/2019/png/150236/1548666845058-ef9a863f-185d-4d04-8b19-dcc7a42e572d.png#align=left&display=inline&height=270&linkTarget=_blank&name=image.png&originHeight=270&originWidth=1728&size=32608&width=1728)<br />![image.png](https://cdn.nlark.com/yuque/0/2019/png/150236/1548666885823-e82d1428-2a2f-40e1-9d92-14eb61659791.png#align=left&display=inline&height=322&linkTarget=_blank&name=image.png&originHeight=322&originWidth=1743&size=51692&width=1743)![image.png](https://cdn.nlark.com/yuque/0/2019/png/150236/1548666900740-227c1742-a182-493e-95d5-a3e542ef7119.png#align=left&display=inline&height=595&linkTarget=_blank&name=image.png&originHeight=595&originWidth=1740&size=63967&width=1740)
